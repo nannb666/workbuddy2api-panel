@@ -313,6 +313,7 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 	// 用 WithPaused 而不是 CountsDetailed：后者把暂停号并进 disabled（/status 的
 	// 「不可用」口径），而概况卡片要分开展示（issue #125）。
 	total, healthy, cooling, disabled, paused, inFlightFull := p.cfg.Pool.CountsDetailedWithPaused()
+	concurrencyUsed, concurrencyLimit := p.cfg.Pool.AvailableConcurrency()
 	sticky := 0
 	if p.cfg.StickyCount != nil {
 		sticky = p.cfg.StickyCount()
@@ -329,8 +330,11 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 		"disabled":        disabled,
 		"paused":          paused,
 		"in_flight_full":  inFlightFull,
-		"accounts":        p.cfg.Pool.List(),
-		"proxy_pool":      p.proxySnapshot(),
+		// 可用账号的并发占用：当前在途 / 生效并发上限之和（不含冷却/禁用/暂停）。
+		"concurrency_used":  concurrencyUsed,
+		"concurrency_limit": concurrencyLimit,
+		"accounts":          p.cfg.Pool.List(),
+		"proxy_pool":        p.proxySnapshot(),
 		// model_locks 模型级限流全清单（哪些模型不能用、锁了几个号、还要锁多久）：
 		// 与 accounts 的账号池视图互补，前端「模型锁池」表直接渲染。无锁时为 null。
 		"model_locks": p.cfg.Pool.ModelLockView(),

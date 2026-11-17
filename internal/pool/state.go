@@ -493,6 +493,25 @@ func (p *Pool) CountsDetailed() (total, healthy, cooling, disabled, concurrencyF
 	return t, h, c, d + pz, f
 }
 
+// AvailableConcurrency 汇总「可用账号」的当前并发占用与上限之和。
+// 可用口径与顶部「可用」卡完全一致：未禁用、未暂停、未冷却/熔断/降权
+// （disabled/paused/!healthy 一律不计）；冷却、异常、暂停的号不参与统计。
+// 分子 = 这些账号当前 inFlight 之和，分母 = 各自生效并发上限之和
+// （默认国内 3 / 国际 2，含已占满账号；并发满不代表账号不可用）。
+func (p *Pool) AvailableConcurrency() (used int64, limit int) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	now := time.Now()
+	for _, e := range p.byUID {
+		if e.disabled || e.paused || !e.healthy(now) {
+			continue
+		}
+		used += e.inFlight.Load()
+		limit += p.concurrencyLimit(e)
+	}
+	return used, limit
+}
+
 // CountsDetailedWithPaused 同 CountsDetailed，但 paused 与 disabled 分开返回。
 //
 // 面板概况要回答「禁用几个、暂停几个」——暂停只关选号、照常签到保活，与禁用混成

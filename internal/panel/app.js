@@ -618,6 +618,8 @@ async function loadOverview(quiet) {
     setText('sDisabled', d.disabled);
     // 暂停选号单列（issue #125）：它只关选号、照常签到保活，与禁用是两种状态。
     if ($('sPaused')) setText('sPaused', d.paused == null ? '-' : d.paused);
+    // 并发占用：仅统计可用号（与「可用」卡同口径，排除冷却/禁用/暂停）。
+    setText('sConcurrency', (d.concurrency_used || 0) + ' / ' + (d.concurrency_limit || 0));
     const remSum = (d.accounts || []).reduce((a, s) => a + (s.credits || 0), 0);
     const totSum = (d.accounts || []).reduce((a, s) => a + (s.credits_total || 0), 0);
     setText('sCredits', totSum > 0 ? remSum + ' / ' + totSum : remSum);
