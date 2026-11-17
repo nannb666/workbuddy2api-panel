@@ -6,14 +6,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 // submitImport 提交一次多文件异步导入，返回提交响应码/内容。
-func submitImport(e *upgEnv, group string, files map[string][]byte) (int, string) {
+func submitImport(e *upgEnv, files map[string][]byte) (int, string) {
 	e.t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -25,9 +23,6 @@ func submitImport(e *upgEnv, group string, files map[string][]byte) (int, string
 		if _, err := fw.Write(raw); err != nil {
 			e.t.Fatal(err)
 		}
-	}
-	if group != "" {
-		_ = mw.WriteField("group", group)
 	}
 	if err := mw.Close(); err != nil {
 		e.t.Fatal(err)
@@ -53,13 +48,10 @@ func statusImport(e *upgEnv) map[string]any {
 	return m
 }
 
-func cockpitDoc(uid, group string) []byte {
+func cockpitDoc(uid string) []byte {
 	doc := map[string]any{
 		"uid": uid, "access_token": "at-" + uid, "refresh_token": "rt-" + uid,
 		"expires_at": 1893456000000, "domain": "www.codebuddy.cn", "nickname": uid,
-	}
-	if group != "" {
-		doc["group"] = group
 	}
 	raw, _ := json.Marshal([]any{doc})
 	return raw
@@ -79,7 +71,7 @@ func TestImportJobProgress(t *testing.T) {
 		})
 	}
 	raw, _ := json.Marshal(docs)
-	code, body := submitImport(e, "", map[string][]byte{"batch.json": raw})
+	code, body := submitImport(e, map[string][]byte{"batch.json": raw})
 	if code != http.StatusAccepted || !strings.Contains(body, `"total":3`) {
 		t.Fatalf("submit -> %d %s", code, body)
 	}
@@ -113,7 +105,7 @@ func TestImportJobDeduplicates(t *testing.T) {
 		map[string]any{"uid": "fresh", "access_token": "at-fresh2", "refresh_token": "rt-fresh2", "domain": "www.codebuddy.cn"},
 	}
 	raw, _ := json.Marshal(docs)
-	code, body := submitImport(e, "", map[string][]byte{"dup.json": raw})
+	code, body := submitImport(e, map[string][]byte{"dup.json": raw})
 	if code != 202 {
 		t.Fatalf("submit -> %d %s", code, body)
 	}
@@ -137,82 +129,6 @@ func TestImportJobDeduplicates(t *testing.T) {
 	}
 }
 
-// 弹窗默认组 + JSON 条目 group 字段覆盖；overview 透出 groups。
-func TestImportJobGroup(t *testing.T) {
-	e := upgNewEnv(t)
-	for _, uid := range []string{"u1", "u2"} {
-		e.fake.register(uid, 100)
-	}
-	files := map[string][]byte{
-		"a.json": cockpitDoc("u1", ""),        // 用弹窗默认组
-		"b.json": cockpitDoc("u2", "special"), // JSON 覆盖
-	}
-	if code, body := submitImport(e, "default", files); code != 202 {
-		t.Fatalf("submit -> %d %s", code, body)
-	}
-	waitImportDone(t, e.panel)
-	g1, _ := e.pool.Status("u1")
-	g2, _ := e.pool.Status("u2")
-	if g1.Group != "default" || g2.Group != "special" {
-		t.Fatalf("groups: u1=%q u2=%q", g1.Group, g2.Group)
-	}
-	// overview.groups 去重升序。
-	req := httptest.NewRequest("GET", "/panel/api/overview", nil)
-	req.Header.Set("Authorization", "Bearer test-key")
-	rr := httptest.NewRecorder()
-	e.panel.ServeHTTP(rr, req)
-	var ov struct {
-		Groups []string `json:"groups"`
-	}
-	if err := json.Unmarshal(rr.Body.Bytes(), &ov); err != nil {
-		t.Fatal(err)
-	}
-	if len(ov.Groups) != 2 || ov.Groups[0] != "default" || ov.Groups[1] != "special" {
-		t.Fatalf("overview groups=%v", ov.Groups)
-	}
-}
-
-// 分组 API：行内改 / 批量移动 / 重命名 / 删除分组=批量删号。
-func TestAccountGroupAPI(t *testing.T) {
-	e := upgNewEnv(t, upgSeed{uid: "u1", credits: 10}, upgSeed{uid: "u2", credits: 10})
-	call := func(method, path, body string) (int, string) {
-		t.Helper()
-		req := httptest.NewRequest(method, path, strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-key")
-		rr := httptest.NewRecorder()
-		e.panel.ServeHTTP(rr, req)
-		return rr.Code, rr.Body.String()
-	}
-	if code, body := call("PUT", "/panel/api/accounts/u1/group", `{"group":"A"}`); code != 200 {
-		t.Fatalf("set group -> %d %s", code, body)
-	}
-	if code, body := call("POST", "/panel/api/accounts/group", `{"uids":["u2"],"group":"A"}`); code != 200 {
-		t.Fatalf("batch move -> %d %s", code, body)
-	}
-	if code, body := call("POST", "/panel/api/groups/rename", `{"from":"A","to":"B"}`); code != 200 {
-		t.Fatalf("rename -> %d %s", code, body)
-	}
-	s1, _ := e.pool.Status("u1")
-	s2, _ := e.pool.Status("u2")
-	if s1.Group != "B" || s2.Group != "B" {
-		t.Fatalf("rename failed: %q %q", s1.Group, s2.Group)
-	}
-	// 删除分组 = 批量删号（含 auth 文件）。
-	code, body := call("POST", "/panel/api/groups/delete", `{"group":"B"}`)
-	if code != 200 || !strings.Contains(body, `"removed":2`) {
-		t.Fatalf("delete group -> %d %s", code, body)
-	}
-	if e.pool.AuthByUID("u1") != nil || e.pool.AuthByUID("u2") != nil {
-		t.Fatal("delete group should remove accounts")
-	}
-	for _, uid := range []string{"u1", "u2"} {
-		if _, err := os.Stat(filepath.Join(e.authDir, "workbuddy-"+uid+".json")); !os.IsNotExist(err) {
-			t.Fatalf("auth file for %s not removed: %v", uid, err)
-		}
-	}
-}
-
 // 单任务锁：未完成时再次提交 409；状态接口无任务时返回空 job_id。
 func TestImportJobSingleFlight(t *testing.T) {
 	// 真实 panel：手动清空全局任务后状态返回空 job_id；随后构造运行中任务验证 409。
@@ -230,7 +146,7 @@ func TestImportJobSingleFlight(t *testing.T) {
 	if snap["job_id"] != "test-running" || snap["running"] != true || snap["finished"] != float64(4) {
 		t.Fatalf("running snapshot=%v", snap)
 	}
-	code, _ := submitImport(e, "", map[string][]byte{"x.json": cockpitDoc("x", "")})
+	code, _ := submitImport(e, map[string][]byte{"x.json": cockpitDoc("x")})
 	if code != http.StatusConflict {
 		t.Fatalf("second import while running -> %d want 409", code)
 	}

@@ -745,7 +745,6 @@ func (p *Pool) statusOf(uid string, e *entry) Status {
 		ConcurrencyLimit:     p.concurrencyLimit(e),
 		ConcurrencyOverride:  e.concurrency,
 		Priority:             e.priority,
-		Group:                e.group,
 		BreakerFails:         e.fails,
 		BreakerUntil:         e.breakerUntil,
 	}

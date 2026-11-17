@@ -165,7 +165,6 @@ func (p *Pool) applyAccountsLocked(accounts map[string]stateAccount) {
 			consecutiveFails:         s.ConsecutiveFails,
 			concurrency:              s.Concurrency,
 			priority:                 s.Priority,
-			group:                    s.Group,
 		}
 		// 到期快照按当前时刻惰性清洗：已过期、零剩余或超出总余额的脏数据不恢复。
 		if e.creditsExpiring < 0 {
@@ -302,7 +301,6 @@ func (p *Pool) stateOverviewLocked() stateFile {
 			CreditsObserved:          e.creditsObserved,
 			Concurrency:              e.concurrency,
 			Priority:                 e.priority,
-			Group:                    e.group,
 			Disabled:                 e.disabled,
 			Paused:                   e.paused,
 			Reason:                   e.reason,

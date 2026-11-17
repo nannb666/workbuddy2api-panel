@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// TestAccountUIHelpers 用 node + DOM 桩执行 app.js，验证分组/排序/进度新增逻辑的
-// 顶层常量与纯函数可用（app.js 内部函数可通过 vm sandbox 顶层作用域访问）。
+// TestAccountUIHelpers 用 node + DOM 桩执行 app.js，验证账号池排序键与导入进度
+// 等纯函数可用（app.js 内部 let/const 可通过同一 vm 脚本访问）。
 // 无 node 环境跳过（与 TestAppJSTopLevelSmoke 同口径）。
 func TestAccountUIHelpers(t *testing.T) {
 	node, err := exec.LookPath("node")
@@ -37,21 +37,17 @@ const sandbox = new Proxy({
 }, { get(t, k) { return t[k]; }, has() { return true; } });
 sandbox.window = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
-// let/const 顶层声明不会挂到 sandbox 对象上，把断言拼进同一段脚本执行。
 const checks = ` + "`" + `
-// 1) 排序键覆盖用户要求的列；2) 分组筛选与状态叠加；3) 进度文案 8/99；4) localStorage 缓存。
+// 1) 排序键覆盖账号表可排序列；2) 导入进度文案 8/99；3) 关键函数存在。
 const keys = Object.keys(ACC_SORT_KEYS);
-const want = ['name','credits','success','priority','group','last_success'];
+const want = ['name','credits','success','priority','last_success'];
 if (want.some(k => !keys.includes(k))) { throw new Error('missing sort keys: ' + keys.join(',')); }
-accFilter = 'healthy'; accGroup = '__none__';
-if (!visibleAccount({ uid:'u', group:'', disabled:false }) || visibleAccount({ uid:'v', group:'A', disabled:false })) {
-  throw new Error('group+status filter');
-}
-accGroup = 'all';
-if (visibleAccount({ uid:'v', group:'A', disabled:true })) { throw new Error('healthy filter'); }
+if ('group' in ACC_SORT_KEYS) { throw new Error('group sort key should be removed'); }
+accFilter = 'healthy';
+if (typeof visibleAccount !== 'undefined') { throw new Error('visibleAccount should be removed with groups'); }
 const txt = importProgressText({ total: 99, finished: 8, imported: 7, skipped: 1, current: 'a.json / u1' });
 if (!txt.includes('8/99') || !txt.includes('已导入 7')) { throw new Error('progress text: ' + txt); }
-if (typeof renderImportProgress !== 'function' || typeof moveSelected !== 'function') { throw new Error('missing helpers'); }
+if (typeof renderImportProgress !== 'function' || typeof applyModelLocksPosition !== 'function') { throw new Error('missing helpers'); }
 'HELPERS OK';
 ` + "`" + `;
 const result = vm.runInContext(src + '\n' + checks, sandbox, { filename: 'app.js' });

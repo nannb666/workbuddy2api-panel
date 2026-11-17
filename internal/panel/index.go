@@ -50,6 +50,10 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("Referrer-Policy", "no-referrer")    // 不外泄面板地址给外部站点
 	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	// 面板页面与静态资源不缓存：镜像升级后浏览器若继续用旧 index.html/app.js，
+	// 会出现「新功能点了没反应」的假故障（旧脚本没有新事件监听）。API 同为动态数据，
+	// 一并禁用缓存；轮询由前端定时触发，不依赖 HTTP 缓存。
+	w.Header().Set("Cache-Control", "no-store, max-age=0")
 }
 
 // index 输出面板页面（静态无秘密；数据接口 /panel/api/* 才走鉴权）。

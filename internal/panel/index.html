@@ -232,9 +232,7 @@ label.fld > .hint { display: block; font-size: 11.5px; color: var(--ink-3); marg
 /* 优先级列：0 保持普通字色；非零用强调色提示「这个号被手工提权」。 */
 .acc .pri { cursor: pointer; }
 .acc .pri.hi { color: var(--accent); font-weight: 650; }
-/* 分组列与可排序表头 */
-.acc .grp { cursor: pointer; color: var(--ink-2); }
-.acc .grp.empty { color: var(--ink-3); }
+/* 可排序表头 */
 .acc th[data-sort] { cursor: pointer; user-select: none; white-space: nowrap; }
 .acc th[data-sort]:hover { color: var(--accent); }
 .acc th .sort-ind { color: var(--accent); font-size: 10px; }
@@ -724,26 +722,6 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
         <div class="pad"><div class="bar" style="height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden"><i id="importBoxBar" style="display:block;height:100%;width:0;background:var(--accent);transition:width .3s"></i></div></div>
       </div>
 
-      <div class="box" id="groupBox">
-        <header>
-          <h3>分组 <span class="hint">仅用于展示/筛选/批量运维，不影响选号</span></h3>
-          <span class="grow"></span>
-          <button class="xs" id="btnGroupRename">重命名分组</button>
-          <button class="xs danger" id="btnGroupDelete">删除分组（删号）</button>
-        </header>
-        <div class="pad">
-          <div class="chips" id="groupChips"></div>
-          <div id="groupBatch" class="state" hidden style="margin-top:8px">
-            已选 <b id="groupSelCount">0</b> 个账号：
-            <select id="groupMoveSel" style="margin:0 4px"></select>
-            <button class="xs primary" id="btnGroupMove">移动</button>
-            <button class="xs" id="btnGroupNew">＋新建分组并移动</button>
-            <button class="xs" id="btnGroupUnset">移出分组</button>
-            <button class="xs ghost" id="btnGroupClear">取消选择</button>
-          </div>
-        </div>
-      </div>
-
       <div class="box">
         <header>
           <h3>账号池</h3>
@@ -759,12 +737,10 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
         <table class="acc">
           <thead><tr>
             <th class="mark" aria-hidden="true"></th>
-            <th><input type="checkbox" id="accSelAll" title="全选当前筛选结果" style="vertical-align:middle"></th>
             <th data-sort="name">账号 <span class="sort-ind"></span></th><th>出口</th><th>状态</th>
             <th data-sort="credits">积分 <span class="sort-ind"></span></th>
             <th data-sort="success">成功 / 失败 <span class="sort-ind"></span></th>
             <th data-sort="priority">优先级 <span class="sort-ind"></span></th><th>并发</th>
-            <th data-sort="group">分组 <span class="sort-ind"></span></th>
             <th>用量</th><th data-sort="last_success">最近成功 <span class="sort-ind"></span></th><th class="c-acts"></th>
           </tr></thead>
           <tbody id="accBody"></tbody>
@@ -850,7 +826,7 @@ socks5://user:pass@host:port"></textarea></label>
           <table class="acc">
             <thead><tr>
               <th>名称 / 协议</th><th>地址</th><th>状态</th><th class="num">延迟</th>
-              <th>最近检测</th><th>错误</th><th class="num">绑定</th><th>启用</th><th class="c-acts"></th>
+              <th>最近检测</th><th>最近使用</th><th>错误</th><th class="num">绑定</th><th>启用</th><th class="c-acts"></th>
             </tr></thead>
             <tbody id="pxBody"></tbody>
           </table>
@@ -1528,11 +1504,6 @@ socks5://user:pass@host:port"></textarea></label>
       <!-- 导入 JSON -->
       <div id="addTabImport" class="tab-panel" hidden>
         <div class="hint" style="margin-bottom:8px">选择 JSON 文件（可多选）。支持插件 OAuth 单对象、对象数组，以及 cockpit tools 导出的账号数组，格式自动识别；按 UID 去重（批内重复或号池已存在会跳过）。</div>
-        <label class="fld" style="margin-bottom:8px"><span class="lb">导入到分组</span>
-          <input id="importGroup" list="importGroupList" placeholder="留空 = 未分组；可输入新分组名">
-          <datalist id="importGroupList"></datalist>
-          <span class="hint">整批默认分组；JSON 条目里若带 group 字段会覆盖它</span>
-        </label>
         <input type="file" id="importFile" accept=".json" multiple style="margin-bottom:8px">
         <div id="importProgress" class="state" hidden><span class="dots">导入进度</span></div>
         <div id="importDone" class="state ok" hidden></div>

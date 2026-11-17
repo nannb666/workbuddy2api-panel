@@ -131,9 +131,7 @@ type Status struct {
 	// ConcurrencyOverride 面板设置的覆盖值；0 = 按域默认（不输出零值）。
 	ConcurrencyOverride int `json:"concurrency_override,omitempty"`
 	// Priority 面板设置的账号优先级：数字越大越优先，0 = 默认。
-	Priority int `json:"priority"`
-	// Group 账号分组标签（仅展示/筛选用，不参与选号）；空 = 未分组。
-	Group        string    `json:"group,omitempty"`
+	Priority     int       `json:"priority"`
 	BreakerFails int       `json:"breaker_fails"`
 	BreakerUntil time.Time `json:"breaker_until,omitempty"`
 }
@@ -290,9 +288,6 @@ type entry struct {
 	// priority 账号优先级：数字越大越优先，0 = 默认。选号时先收敛到最高优先级组，
 	// 再在同组内沿用成本分层 / 快过期 / 权重 / 顺序策略。持久化到 state.json。
 	priority int
-	// group 账号分组标签（仅展示/筛选/导入归类，不参与选号）；空 = 未分组。
-	// 持久化到 state.json。
-	group string
 }
 
 // modelCostOf 返回该账号在指定 model 上的有效成本观测；无观测或观测过期返回 ok=false。
@@ -464,9 +459,7 @@ type stateAccount struct {
 	// Concurrency 单账号并发覆盖值；0 = 按域默认（国内 3 / 国际 2）。
 	Concurrency int `json:"concurrency,omitempty"`
 	// Priority 账号优先级：数字越大越优先；0 = 默认（缺字段旧状态零值）。
-	Priority int `json:"priority,omitempty"`
-	// Group 账号分组标签；空 = 未分组。
-	Group        string    `json:"group,omitempty"`
+	Priority     int       `json:"priority,omitempty"`
 	Disabled     bool      `json:"disabled"`
 	Paused       bool      `json:"paused,omitempty"`
 	Reason       string    `json:"reason,omitempty"`

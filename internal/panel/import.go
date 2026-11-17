@@ -27,7 +27,6 @@ type cockpitAccount struct {
 	TokenType      string `json:"token_type"`
 	ExpiresAt      int64  `json:"expires_at"`
 	Domain         string `json:"domain"`
-	Group          string `json:"group"`
 	DosageNotify   string `json:"dosage_notify_code"`
 	PaymentType    string `json:"payment_type"`
 	Status         string `json:"status"`
@@ -42,7 +41,6 @@ type cockpitAccount struct {
 type importEntry struct {
 	auth  *auth.Auth
 	realm string // cn / global
-	group string // 分组标签（弹窗默认组可被 JSON 的 group 字段覆盖）
 	file  string // 来源文件名（错误定位）
 }
 
@@ -93,7 +91,7 @@ var panelImport = importState{}
 //
 //	POST /panel/api/import/cockpit
 //	Content-Type: multipart/form-data
-//	Body: file=<json>（可重复多个）、group=<目标分组>
+//	Body: file=<json>（可重复多个）
 //
 // 返回 {ok, job_id, total}；进度经 GET /panel/api/import/status 轮询。
 // 未完成前再次提交返回 409（全局单任务）。按 UID 去重：批内重复 + 池里已存在
@@ -103,8 +101,6 @@ func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "parse form: "+err.Error())
 		return
 	}
-	defaultGroup := strings.TrimSpace(r.FormValue("group"))
-
 	// 先把全部文件读进内存（文件内容小），再一次性建任务，避免「建了任务才发现解析失败」。
 	var entries []importEntry
 	var errs []string
@@ -132,9 +128,6 @@ func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, e := range fileEntries {
 			e.file = fh.Filename
-			if e.group == "" {
-				e.group = defaultGroup
-			}
 			entries = append(entries, e)
 		}
 	}
@@ -161,7 +154,7 @@ func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
 	panelImport.mu.Unlock()
 
 	go p.runImportJob(job, entries)
-	log.Printf("panel: import job %s started total=%d entries=%d group=%q", job.ID, total, len(entries), defaultGroup)
+	log.Printf("panel: import job %s started total=%d entries=%d", job.ID, total, len(entries))
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"ok":     true,
 		"job_id": job.ID,
@@ -184,7 +177,7 @@ func (p *Panel) importStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snap)
 }
 
-// runImportJob 串行处理全部条目：每处理一条推进度（含跳过），并写回分组。
+// runImportJob 串行处理全部条目：每处理一条推进度（含跳过）。
 func (p *Panel) runImportJob(job *importJob, entries []importEntry) {
 	defer func() {
 		job.mu.Lock()
@@ -220,9 +213,6 @@ func (p *Panel) runImportJob(job *importJob, entries []importEntry) {
 			job.Errors = append(job.Errors, fmt.Sprintf("uid=%s：%v", uid, err))
 			job.mu.Unlock()
 			continue
-		}
-		if e.group != "" {
-			p.cfg.Pool.SetAccountGroup(uid, e.group)
 		}
 		job.mu.Lock()
 		job.Finished++
@@ -312,15 +302,7 @@ func parseOAuthAuth(raw []byte) (importEntry, error) {
 	if realm != "cn" && realm != "global" {
 		return importEntry{}, fmt.Errorf("invalid realm %q (uid=%s)", realm, uid)
 	}
-	e := importEntry{auth: a, realm: realm}
-	// 顶层 group 字段（弹窗默认组可被它覆盖）。
-	var extra struct {
-		Group string `json:"group"`
-	}
-	if json.Unmarshal(raw, &extra) == nil {
-		e.group = strings.TrimSpace(extra.Group)
-	}
-	return e, nil
+	return importEntry{auth: a, realm: realm}, nil
 }
 
 // parseCockpitAccount 解析 cockpit tools 导出形单条账号。
@@ -363,7 +345,6 @@ func parseCockpitAccount(raw []byte) (importEntry, error) {
 			Nickname:     nickname,
 		},
 		realm: realm,
-		group: strings.TrimSpace(acc.Group),
 	}, nil
 }
 

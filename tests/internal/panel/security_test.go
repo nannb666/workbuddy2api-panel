@@ -38,6 +38,10 @@ func TestSecurityHeadersOnAllPanelResponses(t *testing.T) {
 		if h.Get("Referrer-Policy") != "no-referrer" {
 			t.Errorf("%s %s: Referrer-Policy=%q", c.method, c.path, h.Get("Referrer-Policy"))
 		}
+		// 面板不允许浏览器缓存：旧 index/app.js 会造成「新功能点了没反应」。
+		if got := h.Get("Cache-Control"); !strings.Contains(got, "no-store") {
+			t.Errorf("%s %s: Cache-Control=%q want no-store", c.method, c.path, got)
+		}
 	}
 }
 

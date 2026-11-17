@@ -147,20 +147,23 @@ type health struct {
 }
 
 type View struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	URL          string    `json:"url"`
-	Protocol     string    `json:"protocol"`
-	PasswordSet  bool      `json:"password_set"`
-	Enabled      bool      `json:"enabled"`
-	Status       string    `json:"status"`
-	Checking     bool      `json:"checking"`
-	LatencyMS    int64     `json:"latency_ms"`
-	CheckedAt    time.Time `json:"checked_at"`
-	LastError    string    `json:"last_error"`
-	Failures     int       `json:"failures"`
-	Successes    int       `json:"successes"`
-	BoundCount   int       `json:"bound_count"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	URL         string    `json:"url"`
+	Protocol    string    `json:"protocol"`
+	PasswordSet bool      `json:"password_set"`
+	Enabled     bool      `json:"enabled"`
+	Status      string    `json:"status"`
+	Checking    bool      `json:"checking"`
+	LatencyMS   int64     `json:"latency_ms"`
+	CheckedAt   time.Time `json:"checked_at"`
+	LastError   string    `json:"last_error"`
+	Failures    int       `json:"failures"`
+	Successes   int       `json:"successes"`
+	BoundCount  int       `json:"bound_count"`
+	// LastUsedAt 最近一次被选为出站出口的时刻（运行态，进程重启清零）。
+	// 与「最近检测」区分：检测是健康探测，本字段是真实请求选路。
+	LastUsedAt   time.Time `json:"last_used_at,omitempty"`
 	BlockedUntil time.Time `json:"blocked_until,omitempty"`
 }
 
@@ -188,10 +191,12 @@ type ImportResult struct {
 }
 
 type Manager struct {
-	mu         sync.Mutex
-	path       string
-	data       disk
-	health     map[string]health
+	mu     sync.Mutex
+	path   string
+	data   disk
+	health map[string]health
+	// lastUsed 最近一次被选为出站出口的时刻（运行态，进程重启清零）。
+	lastUsed   map[string]time.Time
 	generation map[string]uint64
 	checking   map[string]bool
 	requested  map[string]bool
@@ -229,7 +234,7 @@ func New(path string, base *http.Transport, dialer *net.Dialer) (*Manager, error
 	m := &Manager{
 		path: path, base: base.Clone(), dialer: dialer,
 		data:   disk{Nodes: []node{}, Bindings: map[string]Binding{}, Realms: map[string]Binding{}, Settings: DefaultSettings()},
-		health: map[string]health{}, generation: map[string]uint64{}, checking: map[string]bool{}, requested: map[string]bool{},
+		health: map[string]health{}, lastUsed: map[string]time.Time{}, generation: map[string]uint64{}, checking: map[string]bool{}, requested: map[string]bool{},
 		transports: map[string]*http.Transport{}, wake: make(chan struct{}, 1), slots: make(chan struct{}, 8),
 		passiveFails: map[string]int{}, passiveAt: map[string]time.Time{}, blocked: map[string]time.Time{},
 	}
@@ -517,7 +522,7 @@ func (m *Manager) Snapshot() Snapshot {
 			ID: n.ID, Name: n.Name, URL: u.String(), Protocol: u.Scheme, PasswordSet: passwordSet,
 			Enabled: n.Enabled, Status: status, Checking: m.checking[n.ID], LatencyMS: h.latencyMS,
 			CheckedAt: h.checkedAt, LastError: h.lastError, Failures: h.failures, Successes: h.successes,
-			BoundCount: counts[n.ID], BlockedUntil: m.blocked[n.ID],
+			BoundCount: counts[n.ID], LastUsedAt: m.lastUsed[n.ID], BlockedUntil: m.blocked[n.ID],
 		})
 	}
 	s.Global = m.globalViewLocked()
@@ -862,6 +867,18 @@ func (m *Manager) globalBlockedLocked(now time.Time) bool {
 	return m.data.Global.Enabled && m.globalURL != nil && !m.globalBlocked.IsZero() && now.Before(m.globalBlocked)
 }
 
+// markUsedLocked 记录代理最近一次被选为出站出口的时刻（调用方需持 m.mu）。
+// 运行态字段，不落盘：重启后清零，与健康探测状态同口径。
+func (m *Manager) markUsedLocked(id string, now time.Time) {
+	if id == "" {
+		return
+	}
+	if m.lastUsed == nil {
+		m.lastUsed = map[string]time.Time{}
+	}
+	m.lastUsed[id] = now
+}
+
 func (m *Manager) selectLocked(uid, realm string) (selection, error) {
 	now := time.Now()
 	if m.closed {
@@ -893,6 +910,7 @@ func (m *Manager) selectLocked(uid, realm string) (selection, error) {
 				return selection{}, &Error{ProxyID: n.ID, Reason: "fixed proxy is unavailable"}
 			}
 
+			m.markUsedLocked(n.ID, now)
 			return selection{node: n, proxied: true}, nil
 		}
 		return selection{}, &Error{ProxyID: b.ProxyID, Reason: "fixed proxy not found"}
@@ -930,11 +948,13 @@ func (m *Manager) selectLocked(uid, realm string) (selection, error) {
 	}
 	selected, count := healthyOf(true)
 	if count > 0 {
+		m.markUsedLocked(selected.ID, now)
 		return selection{node: selected, proxied: true}, nil
 	}
 	if m.data.RandomBindAvoid != "strict" {
 		selected, count = healthyOf(false)
 		if count > 0 {
+			m.markUsedLocked(selected.ID, now)
 			return selection{node: selected, proxied: true}, nil
 		}
 	}

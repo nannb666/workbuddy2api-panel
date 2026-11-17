@@ -226,10 +226,6 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/nickname", p.withAuth(p.accountNickname))
 	p.mux.HandleFunc("PUT /panel/api/accounts/{uid}/concurrency", p.withAuth(p.accountConcurrency))
 	p.mux.HandleFunc("PUT /panel/api/accounts/{uid}/priority", p.withAuth(p.accountPriority))
-	p.mux.HandleFunc("PUT /panel/api/accounts/{uid}/group", p.withAuth(p.accountGroup))
-	p.mux.HandleFunc("POST /panel/api/accounts/group", p.withAuth(p.accountsGroup))
-	p.mux.HandleFunc("POST /panel/api/groups/rename", p.withAuth(p.groupRename))
-	p.mux.HandleFunc("POST /panel/api/groups/delete", p.withAuth(p.groupDelete))
 	p.mux.HandleFunc("GET /panel/api/tasks/jobs", p.taskJobsHandler)
 	p.mux.HandleFunc("GET /panel/api/accounts/{uid}/tasks/job", p.taskJobStatus)
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/job", p.startTaskJob)
@@ -334,7 +330,6 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 		"paused":          paused,
 		"in_flight_full":  inFlightFull,
 		"accounts":        p.cfg.Pool.List(),
-		"groups":          p.cfg.Pool.AccountGroups(),
 		"proxy_pool":      p.proxySnapshot(),
 		// model_locks 模型级限流全清单（哪些模型不能用、锁了几个号、还要锁多久）：
 		// 与 accounts 的账号池视图互补，前端「模型锁池」表直接渲染。无锁时为 null。
