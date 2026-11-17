@@ -55,7 +55,7 @@
 > | **编译恢复** | 补齐 `internal/server/continue.go`、`internal/upstream/output_budget.go` 等缺失依赖，修复半合并导致的编译失败。 |
 > | **运维能力最终移除** | 本轮曾接线 budget / metrics / admin tasks / admin audit / alerting / watchdog，随后按要求整体删除前后端；余额趋势侧边栏一并移除；仅保留「版本与更新」与 updater。 |
 >
-> 镜像：`ghcr.io/lxnan888/wb2api-panel:latest`（GitHub Actions 自动构建，多架构 amd64/arm64，公开可拉）。
+> 镜像：`ghcr.io/nannb666/wb2api-panel:latest`（GitHub Actions 自动构建，多架构 amd64/arm64，公开可拉）。
 > `docker-compose.yml` 已直接引用该镜像——`git clone` 后 `docker compose up -d` 即可，本地不再构建。
 > 面板「配置 → 模型 ID 与跨域路由」可直接改上面两项，保存即生效，无需重启。
 >
@@ -333,7 +333,7 @@ curl -fsSL https://raw.githubusercontent.com/lxnan888/workbuddy2api-panel/main/c
 docker run -d --name workbuddy2api \
   -p 7863:7863 -e TZ=Asia/Shanghai \
   -v ./auths:/app/auths -v ./data:/app/data -v ./config.json:/app/config.json \
-  ghcr.io/lxnan888/wb2api-panel:latest
+  ghcr.io/nannb666/wb2api-panel:latest
 
 # 3. 健康检查（无可用账号时返回 503）
 curl -s http://localhost:7863/healthz
@@ -348,7 +348,7 @@ curl -s http://localhost:7863/healthz
 
 ### 方式一：Docker Compose（推荐服务器部署）
 
-compose 直接引用 CI 构建好的 `ghcr.io/lxnan888/wb2api-panel:latest`，**本地不构建**，也不用克隆整个仓库：
+compose 直接引用 CI 构建好的 `ghcr.io/nannb666/wb2api-panel:latest`，**本地不构建**，也不用克隆整个仓库：
 
 ```bash
 # 1. 建目录，取 compose 与示例配置
@@ -1005,7 +1005,7 @@ http://127.0.0.1:7863/panel/
 
 | tag | 来源 |
 |---|---|
-| `ghcr.io/lxnan888/wb2api-panel:latest` | `main` 最新提交（部署默认用这个） |
+| `ghcr.io/nannb666/wb2api-panel:latest` | `main` 最新提交（部署默认用这个） |
 | `:main` / `:sha-xxxxxxx` | 同一提交的可追溯 tag（sha 为提交短哈希） |
 | `:1.2.3` / `:1.2` / `:1` | 打 `v*` tag 时发布的语义化版本 |
 
