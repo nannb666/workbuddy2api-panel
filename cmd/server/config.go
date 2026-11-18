@@ -77,12 +77,6 @@ type Config struct {
 		SoftRateMax string `json:"soft_rate_max"` // "2h"
 	} `json:"cooldown"`
 
-	// Update 自动更新（原生 Release）。
-	Update struct {
-		AutoEnabled bool   `json:"auto_enabled"`
-		AutoTime    string `json:"auto_time"`
-	} `json:"update"`
-
 	Schedule struct {
 		CheckinHours   []int `json:"checkin_hours"`   // [9,21]
 		TravelHours    []int `json:"travel_hours"`    // [9,21]

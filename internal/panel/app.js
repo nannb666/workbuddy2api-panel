@@ -368,7 +368,7 @@ function go(v) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $('ttl').textContent = TITLES[v];
   if (v === 'models' && !$('mdBody').children.length) loadModels();
-  if (v === 'config') { loadConfig(); loadUpdate(); }
+  if (v === 'config') { loadConfig(); }
   if (v === 'proxies') loadProxies();
   if (v === 'logs') loadLogs();
   if (v === 'usage') loadUsage();
@@ -620,6 +620,9 @@ async function loadOverview(quiet) {
     if ($('sPaused')) setText('sPaused', d.paused == null ? '-' : d.paused);
     // 并发占用：仅统计可用号（与「可用」卡同口径，排除冷却/禁用/暂停）。
     setText('sConcurrency', (d.concurrency_used || 0) + ' / ' + (d.concurrency_limit || 0));
+    // RPM/TPM：最近 5 分钟平均每分钟（sub2api 主仪表盘口径）。
+    setText('sRpm', d.rpm || 0);
+    setText('sTpm', d.tpm || 0);
     const remSum = (d.accounts || []).reduce((a, s) => a + (s.credits || 0), 0);
     const totSum = (d.accounts || []).reduce((a, s) => a + (s.credits_total || 0), 0);
     setText('sCredits', totSum > 0 ? remSum + ' / ' + totSum : remSum);
@@ -1830,30 +1833,6 @@ $('btnEye').onclick = () => {
 };
 $('btnCfgReload').onclick = loadConfig;
 
-async function loadUpdate() {
-  const el = $('updStatus');
-  if (!el) return;
-  try {
-    const d = await api('update');
-    const s = d.status || {};
-    el.textContent = '当前 v' + (s.current_version || '—') +
-      (s.latest_version ? ' · 最新 ' + s.latest_version : '') +
-      (s.update_available ? ' · 有新版本' : ' · 已是最新') +
-      (s.last_error ? ' · 错误：' + s.last_error : '');
-    if ($('btnUpdateInstall')) $('btnUpdateInstall').disabled = !s.can_install;
-  } catch (e) {
-    el.textContent = '更新状态不可用：' + e.message;
-  }
-}
-if ($('btnUpdateCheck')) $('btnUpdateCheck').onclick = async () => {
-  try { await api('update/check', { method: 'POST' }); toast('检查完成', 'ok'); } catch (e) { toast(e.message, 'err'); }
-  loadUpdate();
-};
-if ($('btnUpdateInstall')) $('btnUpdateInstall').onclick = async () => {
-  if (!confirm('下载并安装最新版本？安装完成后服务会自动重启。')) return;
-  try { await api('update/install', { method: 'POST' }); toast('安装已开始', 'ok'); } catch (e) { toast(e.message, 'err'); }
-  loadUpdate();
-};
 $('cfgForm').onsubmit = async ev => {
   ev.preventDefault();
   // 时长字段脏值拦截：标红 + toast 点名，不发保存请求（后端同样会拒，这里前置）。

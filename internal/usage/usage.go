@@ -77,6 +77,18 @@ type file struct {
 	Buckets []bucket `json:"buckets"`
 }
 
+// perfWindowSeconds 仪表盘 RPM/TPM 的统计窗口：sub2api 取最近 5 分钟总量 ÷ 5
+// 得到「平均每分钟」，这里用 300 个秒级环形桶精确复刻该口径（不落盘，重启清零）。
+const perfWindowSeconds = 300
+
+// perfBucket 单个自然秒的请求/Token 增量。环形数组按下标 sec%300 定位，
+// sec 不等即视为过期槽位，写入前整体重置——无需遍历清理。
+type perfBucket struct {
+	sec    int64
+	req    int64
+	tokens int64
+}
+
 // Recorder 并发安全的用量记录器。
 type Recorder struct {
 	mu      sync.Mutex
@@ -84,6 +96,8 @@ type Recorder struct {
 	buckets map[string]*bucket // key: scope|realm|uid|model|rate
 	dirty   bool
 	started time.Time
+	// perf 最近 5 分钟秒级性能桶（RPM/TPM 用）。运行态，不落盘。
+	perf [perfWindowSeconds]perfBucket
 
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -149,13 +163,13 @@ type Delta struct {
 	HasCredit        bool
 	ModelRate        string
 	// CacheHitTokens / CacheMissTokens 前缀缓存命中/未命中观测（issue #92）。
-	HasCacheTokens   bool
-	CacheHitTokens   int64
-	CacheMissTokens  int64
-	LatencyMs        int64
-	HasLatency       bool
-	TokensPerSecond  float64
-	HasTPS           bool
+	HasCacheTokens  bool
+	CacheHitTokens  int64
+	CacheMissTokens int64
+	LatencyMs       int64
+	HasLatency      bool
+	TokensPerSecond float64
+	HasTPS          bool
 }
 
 // Add 记录一次请求尝试。
@@ -222,7 +236,47 @@ func (r *Recorder) Add(now time.Time, realm, uid, model string, d Delta, ok bool
 		b.TPS += d.TokensPerSecond
 		b.TPSN++
 	}
+	// 仪表盘 5 分钟性能桶：sub2api 口径 RPM=请求尝试数、TPM=prompt+completion
+	// （主仪表盘不含 cache token；失败尝试计入 RPM，无 token 增量）。
+	sec := now.Unix()
+	pb := &r.perf[sec%perfWindowSeconds]
+	if pb.sec != sec {
+		*pb = perfBucket{sec: sec}
+	}
+	pb.req++
+	if d.HasPromptTokens {
+		pb.tokens += d.PromptTokens
+	}
+	if d.HasCompletion {
+		pb.tokens += d.CompletionTokens
+	}
+	if !d.HasPromptTokens && !d.HasCompletion && d.HasTotal {
+		pb.tokens += d.TotalTokens
+	}
 	r.dirty = true
+}
+
+// Performance5m 返回最近 5 分钟的平均每分钟请求数（RPM）与 Token 数（TPM），
+// 口径对齐 sub2api 主仪表盘：窗口内总量 ÷ 5；TPM 只计 prompt+completion，
+// 不含 cache 命中/未命中；失败尝试计入 RPM。运行态，重启后从零累积。
+func (r *Recorder) Performance5m() (rpm, tpm int64) {
+	if r == nil {
+		return 0, 0
+	}
+	now := time.Now().Unix()
+	cutoff := now - perfWindowSeconds
+	var req, tokens int64
+	r.mu.Lock()
+	for i := range r.perf {
+		b := &r.perf[i]
+		if b.sec < cutoff || b.sec > now {
+			continue
+		}
+		req += b.req
+		tokens += b.tokens
+	}
+	r.mu.Unlock()
+	return req / 5, tokens / 5
 }
 
 // Rollup 把超出 hourlyKeep 的小时桶折叠为日桶（按本地日历日）。

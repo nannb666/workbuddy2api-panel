@@ -23,10 +23,6 @@
     "soft_rate": "600s",
     "soft_rate_max": "2h"
   },
-  "update": {
-    "auto_enabled": false,
-    "auto_time": "04:00"
-  },
   "schedule": {
     "checkin_hours": [9, 21],
     "growth_hours": [1],

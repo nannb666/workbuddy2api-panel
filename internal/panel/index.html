@@ -682,6 +682,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
         <div class="stat bad" data-filter="disabled" style="cursor:pointer" title="点击筛选：已禁用/已暂停选号"><div class="v" id="sDisabled">-</div><div class="k">已禁用</div></div>
         <div class="stat warn" data-filter="paused" style="cursor:pointer" title="点击筛选：仅已暂停选号"><div class="v" id="sPaused">-</div><div class="k">已暂停选号</div></div>
         <div class="stat" title="可用账号当前在途 / 并发上限合计（不含冷却、禁用、暂停）"><div class="v" id="sConcurrency">-</div><div class="k">并发占用</div></div>
+        <div class="stat" title="最近 5 分钟平均每分钟请求数（含失败尝试；sub2api 仪表盘口径）"><div class="v" id="sRpm">-</div><div class="k">RPM</div></div>
+        <div class="stat" title="最近 5 分钟平均每分钟 Token 数（prompt + completion，不含缓存命中；sub2api 仪表盘口径）"><div class="v" id="sTpm">-</div><div class="k">TPM</div></div>
         <div class="stat"><div class="v" id="sCredits">-</div><div class="k">积分剩余 / 总额</div></div>
         <div class="stat"><div class="v" id="sSticky">-</div><div class="k">粘性会话</div></div>
       </div>
@@ -1311,13 +1313,6 @@ socks5://user:pass@host:port"></textarea></label>
             <div class="hint" style="margin-top:6px">默认不勾选 = 保护开启：命中 403 / 11140 立即禁用该号并停止本请求轮换，短窗内多个号命中还会全池暂停（防设备/出口级连坐）。勾选后：命中号仍禁用，但本请求继续轮换试下一个号，连坐暂停门整体停用。立即生效，无需重启。</div>
             <div class="hint" style="margin-top:10px">Upstash Redis 镜像、凭证目录与状态文件路径需手工编辑配置文件（判为重启项）。</div>
           </div>
-        </div>
-
-        <div class="box">
-          <header><h3>版本与更新</h3><span class="grow"></span>
-            <button class="xs" id="btnUpdateCheck">检查更新</button>
-            <button class="xs primary" id="btnUpdateInstall">安装更新</button></header>
-          <div class="pad"><div class="hint" id="updStatus">读取中…</div></div>
         </div>
 
         <div class="box">
